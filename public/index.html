@@ -1,38 +1,128 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weather API - Cari Lokasi</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      font-family: "Segoe UI", system-ui, sans-serif; color: #fff;
+      background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    }
+    .card {
+      width: min(440px, 92vw); padding: 28px; border-radius: 20px;
+      background: rgba(255,255,255,.12); backdrop-filter: blur(12px);
+      box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .id { margin: 0 0 20px; font-size: 13px; opacity: .75; }
+    form { display: flex; gap: 8px; margin-bottom: 20px; }
+    input {
+      flex: 1; padding: 12px 14px; border: 0; border-radius: 12px;
+      font-size: 15px; outline: none;
+    }
+    button {
+      padding: 12px 18px; border: 0; border-radius: 12px; cursor: pointer;
+      font-weight: 600; background: #4fc3f7; color: #06283d;
+    }
+    button:hover { background: #81d4fa; }
+    .row {
+      display: flex; justify-content: space-between; gap: 16px; padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,.18);
+    }
+    .row:last-child { border-bottom: 0; }
+    .row span:first-child { opacity: .7; }
+    .row span:last-child { font-weight: 600; text-align: right; }
+    #status { min-height: 22px; margin-bottom: 8px; font-size: 14px; }
+    .error { color: #ffab91; }
+  </style>
 </head>
 <body>
-    <h3>nama : Sehabidha Maulana</h3>
-    <h3>NIM : 20240140086</h3>
+  <div class="card">
+    <h1>Sehabidha Maulana</h1>
+    <p class="id">NIM 20240140086</p>
 
-    <p>
-        kota :
-        span id="kota"></span>
-    </p>
+    <form id="form">
+      <input id="lokasi" type="text" placeholder="Lokasi" required>
+      <button type="submit">Cari</button>
+    </form>
 
-    <hr>
+    <div id="status"></div>
 
-    <p>
-        koordinat:
-        span id="negara"></span>
-    </p>
+    <div>
+      <div class="row"><span>Lokasi</span><span id="out-lokasi">-</span></div>
+      <div class="row"><span>Negara</span><span id="out-negara">-</span></div>
+      <div class="row"><span>Provinsi</span><span id="out-provinsi">-</span></div>
+      <div class="row"><span>Kecamatan</span><span id="out-kecamatan">-</span></div>
+      <div class="row"><span>Longitude</span><span id="out-longitude">-</span></div>
+      <div class="row"><span>Latitude</span><span id="out-latitude">-</span></div>
+    </div>
+  </div>
 
-    <script>
-      fetch("/api/lokasi")
-        .then(response => response.json())
-        .then(data => {
-          console.log(data);
-          document.getElementById("lokasi").innerHTML = data.kota;
-          document.getElementById("negara").innerHTML = data.koordinat;
-        })
-        .catch(error => {
-          console.error(error);
+  <script>
+    //API key MapTiler
+    const API_KEY = "tClmznaqDXbJPt4KHEV5";
+    const BASE_URL = "https://api.maptiler.com/geocoding";
+
+    const form = document.getElementById("form");
+    const status = document.getElementById("status");
+    const ids = ["lokasi", "negara", "provinsi", "kecamatan", "longitude", "latitude"];
+
+    function cariTipe(feature, daftarTipe) {
+      const semua = [feature, ...(feature.context || [])];
+      for (const tipe of daftarTipe) {
+        const item = semua.find((x) => (x.id || "").startsWith(tipe + "."));
+        if (item) return item.text || item.place_name || "-";
+      }
+      return "-";
+    }
+
+    function reset() {
+      ids.forEach((id) => (document.getElementById("out-" + id).textContent = "-"));
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const q = document.getElementById("lokasi").value.trim();
+      status.className = "";
+      status.textContent = "Mencari...";
+
+      try {
+        const url = `${BASE_URL}/${encodeURIComponent(q)}.json?key=${API_KEY}&language=id&limit=1`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Gagal mengambil data (cek API key)");
+
+        const data = await response.json();
+        console.log(data);
+
+        const feature = data.features[0];
+        if (!feature) throw new Error("Lokasi tidak ditemukan");
+
+        const [longitude, latitude] = feature.geometry.coordinates;
+        const hasil = {
+          lokasi: feature.place_name,
+          negara: cariTipe(feature, ["country"]),
+          provinsi: cariTipe(feature, ["region"]),
+          kecamatan: cariTipe(feature, [
+            "municipal_district", "joint_submunicipality", "locality",
+            "municipality", "joint_municipality", "county",
+          ]),
+          longitude,
+          latitude,
+        };
+
+        ids.forEach((id) => {
+          document.getElementById("out-" + id).textContent = hasil[id];
         });
-    </script>
-
+        status.textContent = "";
+      } catch (err) {
+        status.className = "error";
+        status.textContent = err.message;
+        reset();
+      }
+    });
+  </script>
 </body>
 </html>
